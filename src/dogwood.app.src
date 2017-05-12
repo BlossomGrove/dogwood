@@ -1,0 +1,9 @@
+%%% -*- erlang -*-
+{application,dogwood,
+ [{description,"Authentication, Authorization, and Accounting layer"},
+  {vsn,"%VSN%"},
+  {modules,[%MODULES%]},
+  {registered,[dogwood_sup]},
+  {env,[{db_path,"/tmp"}]},
+  {applications,[kernel,stdlib]},
+  {mod,{dogwood_app,[]}}]}.
