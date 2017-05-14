@@ -10,7 +10,8 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0,
+	 start_main/0,start_child/1,stop_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -20,6 +21,27 @@
 %%%===================================================================
 %%% API functions
 %%%===================================================================
+start_main() ->
+    start_child(dogwood_manager).
+
+
+start_child(Mod) ->
+    Spec={Mod,{Mod,start_link,[]},permanent,2000,worker,[Mod]},
+    case supervisor:start_child(?MODULE, Spec) of
+	{ok,Child} ->
+	    Child;
+	{ok,Child,_Info} ->
+	    Child;
+	{error,{already_started,Pid}} ->
+	    Pid;
+	{error,Reason} ->
+	    io:format("JB Reason=~p~n",[Reason]),
+	    throw({error,Reason})
+    end.
+
+stop_child(Mod) ->
+    supervisor:terminate_child(?MODULE,Mod).
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -49,19 +71,10 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-
     SupFlags = #{strategy => one_for_one,
 		 intensity => 1,
 		 period => 5},
-
-    AChild = #{id => dogwood_manager,
-	       start => {dogwood_manager, start_link, []},
-	       restart => permanent,
-	       shutdown => 5000,
-	       type => worker,
-	       modules => [dogwood_manager]},
-
-    {ok, {SupFlags, [AChild]}}.
+    {ok, {SupFlags, []}}.
 
 %%%===================================================================
 %%% Internal functions

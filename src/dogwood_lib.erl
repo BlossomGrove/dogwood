@@ -10,7 +10,7 @@
 
 %% API
 -export([parse/1,
-	 read_cfg/0, get_cfg/1]).
+	 read_cfg/0, get_cfg/1, get_cfg/2]).
 
 -include("dogwood_internal.hrl").
 
@@ -24,6 +24,9 @@ read_cfg() ->
 %% Access configuration
 get_cfg(Cfg) ->
     emd_cfg:get_cfg_a(?APP_NAME,Cfg).
+
+get_cfg(Cfg,Def) ->
+    emd_cfg:get_cfg_a(?APP_NAME,Cfg,Def).
 
 
 %%--------------------------------------------------------------------

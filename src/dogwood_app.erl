@@ -38,10 +38,9 @@ start(_StartType, _StartArgs) ->
 
     case dogwood_sup:start_link() of
 	{ok, Pid} ->
-	    LibDir=filename:dirname(filename:dirname(
-				      filename:dirname(code:which(?MODULE)))),
-	    io:format("dogwood_app Apps=~p~n LibDir=~p~n",[Apps,LibDir]),
-	    emd_lib:start_apps(Apps,LibDir),
+	    io:format("dogwood_app Apps=~p~n",[Apps]),
+	    emd_lib:start_apps(Apps),
+	    dogwood_sup:start_main(),
 	    {ok, Pid};
 	Error ->
 	    Error
