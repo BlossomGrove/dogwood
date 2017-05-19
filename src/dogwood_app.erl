@@ -33,7 +33,6 @@
 %% @end
 %%--------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
-    dogwood_lib:read_cfg(),
     Apps=dogwood_lib:get_cfg(app_depend),
 
     case dogwood_sup:start_link() of

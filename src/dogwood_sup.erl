@@ -22,7 +22,8 @@
 %%% API functions
 %%%===================================================================
 start_main() ->
-    start_child(dogwood_manager).
+    start_child(dogwood_manager),
+    start_child(dogwood_access).
 
 
 start_child(Mod) ->

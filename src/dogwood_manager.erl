@@ -11,7 +11,8 @@
 
 %% API
 -export([start_link/0,
-	 event/1,
+	 read_cfg/0,
+	 event/1,event/2,
 	 insert/4
 	]).
 
@@ -35,9 +36,17 @@
 %%%===================================================================
 event({put,Channel,ReqHeaders,ReqBody}) ->
     gen_server:cast(?MODULE,{put,Channel,ReqHeaders,ReqBody});
+event([Org,Event]) ->
+    gen_server:cast(?MODULE,{Org,Event});
 event(Event) ->
     gen_server:call(?MODULE,Event,?TIMEOUT).
 
+event(Org,Event) ->
+    gen_server:call(?MODULE,{Org,Event},?TIMEOUT).
+
+read_cfg() ->
+    gen_server:call(?MODULE,read_cfg,?TIMEOUT).
+    
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -66,8 +75,10 @@ start_link() ->
 %%--------------------------------------------------------------------
 init([]) ->
     %% Open database
-    Db=dogwood_db:open(),
-
+    Sensors=dogwood_lib:get_cfg(sensors,[]),
+    [circdb_manager:create(Tabs,Id) || #sensor{id=Id,ts=Tabs} <- Sensors],
+    Db=dogwood_db:open(Sensors),
+    
     {ok, #state{db=Db}}.
 
 %%--------------------------------------------------------------------
@@ -85,60 +96,23 @@ init([]) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_call({post,ReqHeaders,ReqBody}, _From, State=#state{db=Db}) ->
-    %% Got some sensor data, assume it is JSON coded for now...
+    %% Got some sensor data, from the REST interface
+    %% Should check Content-Type header..., but assume it is JSON coded for now.
     Body=emd_json:decode(ReqBody),
-    io:format("ReqHeaders=~p~n Body=~p~n",[ReqHeaders,Body]),
+%    io:format("ReqHeaders=~p~n",[ReqHeaders]),
+    io:format("Body=~p~n",[Body]),
     handle_request(Body,Db),
 
     D="<html>Got the data!</html>",
     RespHeaders=#http_response_h{content_type="text/html",
 				 content_length=length(D)},
     {reply,{RespHeaders,D},State};
-handle_call({get_last_from_channel,Channel,Nstr}, _From, State=#state{db=Db}) ->
-    N=to_integer(Nstr),
-    D=case dogwood_db:lookup_channel(Channel,N,Db) of
-	  MsgList  when is_list(MsgList) ->
-	      format_msglist(MsgList,[]);
-	  empty ->
-	      "Channel "++Channel++" holds no messages"
-      end,
-    RespHeaders=#http_response_h{content_type="text/html",
-				 content_length=length(D)},
-    {reply,{RespHeaders,D},State};
-handle_call({get_last_from_user,User,Nstr}, _From, State=#state{db=Db}) ->
-    N=to_integer(Nstr),
-    D=case dogwood_db:lookup_user(User,N,Db) of
-	  MsgList  when is_list(MsgList) ->
-	      format_msglist(MsgList,[]);
-	  empty ->
-	      "User "++User++" holds no messages"
-      end,
-    RespHeaders=#http_response_h{content_type="text/html",
-				 content_length=length(D)},
-    {reply,{RespHeaders,D},State};
-handle_call({get_last_from_tag,Tag,Nstr}, _From, State=#state{db=Db}) ->
-    N=to_integer(Nstr),
-    D=case dogwood_db:lookup_tag(Tag,N,Db) of
-	  MsgList when is_list(MsgList) ->
-	      format_msglist(MsgList,[]);
-	  empty ->
-	      "Tag "++Tag++" has no messages"
-      end,
-    RespHeaders=#http_response_h{content_type="text/html",
-				 content_length=length(D)},
-    {reply,{RespHeaders,D},State};
-handle_call({get_last_mention,User,Nstr}, _From, State=#state{db=Db}) ->
-    N=to_integer(Nstr),
-    D=case dogwood_db:lookup_mention(User,N,Db) of
-	  MsgList when is_list(MsgList) ->
-	      format_msglist(MsgList,[]);
-	  empty ->
-	      "User "++User++" has no mentions"
-      end,
-    RespHeaders=#http_response_h{content_type="text/html",
-				 content_length=length(D)},
-    {reply,{RespHeaders,D},State};
+handle_call(read_cfg, _From, State=#state{db=Db}) ->
+    Resp=dogwood_lib:read_cfg(),
+    dogwood_db:update(Db),
+    {reply, Resp, State};
 handle_call(_Request, _From, State) ->
+    io:format("_Request=~p~n",[_Request]),
     {reply, {error,bad_cmd}, State}.
 
 
@@ -152,6 +126,29 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({mqtt,{connected,Id}}, State=#state{db=Db}) ->
+    io:format("MQTT ~p is now connected, subscribe to some topics!~n",[Id]),    
+    SubscribeTopics=dogwood_lib:get_cfg(subscribe_topics),
+    do_subscribe(Id,SubscribeTopics),
+
+    {noreply,State};
+handle_cast({mqtt,{disconnected,Id}}, State=#state{db=Db}) ->
+    io:format("MQTT ~p is now disconnected ~n",[Id]),    
+    
+    %% Trying to resubscribe... hmm
+    SubscribeTopics=dogwood_lib:get_cfg(subscribe_topics),
+    do_subscribe(Id,SubscribeTopics),
+
+    {noreply,State};
+handle_cast({mqtt,{publish,Topic,ReqBody}}, State=#state{db=Db}) ->
+    %% Got some data from the MQTT interface
+    %% Content type info is missing from the MQTT protocol, but assume it is
+    %% JSON coded for now...
+    Body=emd_json:decode(ReqBody),
+    handle_request({mqtt,Topic,Body},Db),
+
+    io:format("Topic=~p~n Body=~p~n",[Topic,Body]),
+    {noreply,State};
 handle_cast({put,Channel,ReqHeaders,ReqBody}, State=#state{db=Db}) ->
     %% Parse and store a new message in the database
     %% As parsing and storing in a database are potential heavy opertaions
@@ -159,6 +156,20 @@ handle_cast({put,Channel,ReqHeaders,ReqBody}, State=#state{db=Db}) ->
     spawn_link(?MODULE,insert,[Channel,ReqHeaders,ReqBody,Db]),
 
     {noreply, State}.
+
+
+do_subscribe(Id,SubscribeTopics) ->
+    Topics=proplists:get_value(Id,SubscribeTopics),
+    do_subscribe2(Topics).
+
+
+do_subscribe2([]) ->
+    ok;
+do_subscribe2([Topic|Rest]) ->
+    emqttc_manager:subscribe(Topic),
+    do_subscribe2(Rest).
+
+
 
 %%--------------------------------------------------------------------
 %% @private
@@ -225,12 +236,44 @@ code_change(_OldVsn, State, _Extra) ->
 %%                  {analog1,0},
 %%                  {gpsStr,<<"0:.0">>},
 %%                  {timedatestr,<<"2017-05-11T11:27:59.143023">>}]}]}]
-handle_request([{header,H},{event,[{recordData,RecordData}]}],Db) ->    
-    Map=maps:from_list(RecordData),
-    case lookup_sensor(maps:get(unitid,Map),Db) of
+handle_request([{header,H},{event,[{recordData,SensorData}]}],Db) ->    
+    case lookup_sensor(proplists:get_value(unitid,SensorData),Db) of
+	Sensor=#sensor{id=SensorId,
+		       provider=kaa_rest} -> %% Store incoming data from sensor
+	    io:format("(From REST) Known SensorId=~p Sensor=~p~n",
+		      [SensorId,Sensor]),
+	    circdb_manager:update(SensorId,SensorData),
+	    dogwood_access:incoming(SensorId,SensorData),
+	    Sensor;
 	undefined ->
+	    io:format("Unknown H=~p~n Sensor=~p~n",[H,SensorData]),
 	    ok;
 	Sensor ->
+	    io:format("(From REST) Sensor=~p not stored~n",[Sensor]),
+	    Sensor
+    end;
+handle_request({mqtt,Topic,Body},Db) ->
+    %% Note that this is a topic we have requested a subscription on, via
+    %% configuration. Thus, we should use that configuration here...
+    UnitId=case string:tokens(binary_to_list(Topic),"/") of
+	       ["hplus","loradata","debug",UnitStr,"json"] ->
+		   list_to_binary(UnitStr);
+	       _ ->
+		   undefined
+	   end,
+    SensorData=proplists:get_value('Payload',Body,[]),
+    case lookup_sensor(UnitId,Db) of
+	Sensor=#sensor{id=SensorId,
+		       provider=mqtt} -> %% Store incoming data from sensor
+	    io:format("(From MQTT) Known SensorId=~p Sensor=~p~n",
+		      [SensorId,Sensor]),
+	    circdb_manager:update(SensorId,SensorData),
+	    Sensor;
+	undefined ->
+	    io:format("Unknown Sensor=~p~n",[SensorData]),
+	    ok;
+	Sensor ->
+	    io:format("(From MQTT) Sensor=~p not stored~n",[Sensor]),
 	    Sensor
     end;
 handle_request(Other,Db) ->

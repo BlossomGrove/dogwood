@@ -11,6 +11,7 @@ MODULES= \
 	dogwood_app \
 	dogwood_sup \
 	dogwood_manager \
+	dogwood_access \
 	dogwood_db \
 	dogwood_lib \
 	mod_dogwood

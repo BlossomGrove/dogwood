@@ -3,7 +3,8 @@
 %% An account that points out the rights for a specific user.
 -record(account,{
 	  user,
-	  access
+	  sensors, % List with sensors this account has access to
+	  action   % Action on incoming data from accessible sensors
 	  }).
 
 %% A sensor that is able to (somehow) deliver sensor data to us.

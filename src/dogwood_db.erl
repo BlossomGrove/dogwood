@@ -10,21 +10,11 @@
 -module(dogwood_db).
 
 %% API
--export([open/0,close/1,
+-export([open/1,close/1,
 	 clean/0,
-	 insert/2,
-	 insert_in_list/3,
-
-	 lookup_user/3
+	 update/2,
+	 insert_in_list/3
 	]).
-
--record(dogwood_db,{
-	  channel, % (ets) Keeps message references sorted on channels
-	  user,    % (ets) Keeps message references sorted on users
-	  tags,    % (ets) Keeps message references sorted on tags
-	  mentions,% (ets) Keeps message references sorted on mentions
-	  messages % (dets) The actual storage of messages
-	 }).
 
 -include("dogwood_internal.hrl").
 
@@ -33,9 +23,8 @@
 %%%===================================================================
 
 %% Open a database.
-open() ->
+open(Sensors) ->
     Accounts=dogwood_lib:get_cfg(accounts,[]),
-    Sensors=dogwood_lib:get_cfg(sensors,[]),
     Db=ets:new(dogwood,[{keypos,#sensor.unit}]),
     ets:insert(Db,Sensors),
     Db.
@@ -50,19 +39,10 @@ clean() ->
     dets:delete_all_objects(Db).
 
 
-insert(Msg,DogwoodDb=#dogwood_db{messages=Db}) ->
-    MsgRef=dets:update_counter(Db,msg_ref,1),
-    dets:insert(Db,{MsgRef,Msg}).
+update(Sensors,Db) ->
+    Accounts=dogwood_lib:get_cfg(accounts,[]),
+    ets:insert(Db,Sensors).
 
-%% Lookup last N message in Db from User
-lookup_user(User,N,#dogwood_db{user=Udb,
-			      messages=Db}) ->
-    case ets:lookup(Udb,User) of
-	[] ->
-	    empty;
-	[{_,MsgRefList}] ->
-	    MsgRefList
-    end.
 
 
 %%--------------------------------------------------------------------

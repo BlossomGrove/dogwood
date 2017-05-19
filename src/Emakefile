@@ -1,9 +1,0 @@
-%%% -*- erlang -*-
-
-{[dogwood,dogwood_app,dogwood_sup,dogwood_manager,dogwood_db,dogwood_lib,mod_dogwood],
- [debug_info,
-  {outdir,"../ebin"},
-  {i,"../../jnets/include"}
- ]}.
-
-

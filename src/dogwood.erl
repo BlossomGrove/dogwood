@@ -21,6 +21,7 @@
 %% erl -pa meadow/ebin dogwood/ebin -run dogwood start
 %%  ssh -R 10000:localhost:9999 dektech@kaa.testbed.se
 start() ->
+    dogwood_lib:read_cfg(),
     application:start(?MODULE),
     SiteHome="/opt/dogwood/site",
     jnets_server:start_servers(SiteHome).
