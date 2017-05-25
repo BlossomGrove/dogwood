@@ -18,7 +18,7 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
-%% erl -pa meadow/ebin dogwood/ebin -run dogwood start
+%% erl -setcookie "secret" -name pilot@10.10.69.115 -pa meadow/ebin dogwood/ebin -run dogwood start
 %%  ssh -R 10000:localhost:9999 dektech@kaa.testbed.se
 start() ->
     dogwood_lib:read_cfg(),

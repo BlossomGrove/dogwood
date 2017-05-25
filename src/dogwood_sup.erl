@@ -11,7 +11,7 @@
 
 %% API
 -export([start_link/0,
-	 start_main/0,start_child/1,stop_child/1]).
+	 start_main/0,start_child/2,stop_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -22,12 +22,14 @@
 %%% API functions
 %%%===================================================================
 start_main() ->
-    start_child(dogwood_manager),
-    start_child(dogwood_access).
+    Sensors=dogwood_lib:get_cfg(sensors,[]),
+    start_child(dogwood_db,[Sensors]),
+    start_child(dogwood_access,[]),
+    start_child(dogwood_manager,[]).
 
 
-start_child(Mod) ->
-    Spec={Mod,{Mod,start_link,[]},permanent,2000,worker,[Mod]},
+start_child(Mod,Args) ->
+    Spec={Mod,{Mod,start_link,Args},permanent,2000,worker,[Mod]},
     case supervisor:start_child(?MODULE, Spec) of
 	{ok,Child} ->
 	    Child;

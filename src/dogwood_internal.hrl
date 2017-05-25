@@ -1,10 +1,15 @@
 -define(APP_NAME,dogwood).
 
 %% An account that points out the rights for a specific user.
+%% Note:
+%% - fwds is a list with tuples on the form {SensorIds, FwdAction}, where
+%%   + SensorIds is a list with sensor ids
+%%   + FwdAction is a tuple, MFA
 -record(account,{
 	  user,
-	  sensors, % List with sensors this account has access to
-	  action   % Action on incoming data from accessible sensors
+	  keys,  % Encryption keys used when transporting data
+	  fwds,  % Controls how (if) to forward data
+	  reads  % Controls how (if) to allow reading data
 	  }).
 
 %% A sensor that is able to (somehow) deliver sensor data to us.
