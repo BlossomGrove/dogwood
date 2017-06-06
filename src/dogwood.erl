@@ -30,7 +30,7 @@ stop() ->
     emd_lib:stop_app().
 
 
-%% --- Specific configuration records for circdb
+%% --- Specific configuration records for dogwood
 map_record(RecordType,Fields) ->
     case RecordType of
 	account ->
