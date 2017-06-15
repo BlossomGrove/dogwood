@@ -101,7 +101,7 @@ handle_call({post,_ReqHeaders,ReqBody}, _From, State) ->
     %% Should check Content-Type header..., but assume it is JSON coded for now.
     Body=emd_json:decode(ReqBody),
 %    io:format("ReqHeaders=~p~n",[ReqHeaders]),
-    io:format("Body=~p~n",[Body]),
+%    io:format("Body=~p~n",[Body]),
     handle_request(Body),
 
     D="<html>Got the data!</html>",
@@ -150,7 +150,14 @@ handle_cast({mqtt,{publish,Topic,ReqBody}}, State) ->
     %% Got some data from the MQTT interface
     %% Content type info is missing from the MQTT protocol, but assume it is
     %% JSON coded for now...
-    Body=emd_json:decode(ReqBody),
+    Body=try
+	     emd_json:decode(ReqBody)
+	 catch
+	     Reason:_ ->
+		 io:format("Not JSON: ~p~n",[Reason]),
+		 ReqBody
+	 end,
+	     
     handle_request({mqtt,Topic,Body}),
 
     io:format("Topic=~p~n Body=~p~n",[Topic,Body]),
@@ -216,7 +223,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_request([{header,H},{event,[{recordData,SensorData}]}]) ->    
     UnitId=binary_to_list(proplists:get_value(unitid,SensorData)),
-    io:format("(From REST) UnitId=~p~n",[UnitId]),
+    io:format("(From REST) SensorData=~p~n",[SensorData]),
     %% Provider=2 == dc_ds=2 => dc_dev=2 => type={http,kaa}
     dogwood_access:incoming(UnitId,2,{H,SensorData});
 handle_request({mqtt,Topic,Body}) ->
@@ -224,6 +231,8 @@ handle_request({mqtt,Topic,Body}) ->
     %% configuration. Thus, we should use that configuration here...
     UnitId=case string:tokens(binary_to_list(Topic),"/") of
 	       ["hplus","loradata","debug",UnitStr,"json"] ->
+		   UnitStr;
+	       ["hplus","data","debug",UnitStr,"json"] ->
 		   UnitStr;
 	       _ ->
 		   undefined

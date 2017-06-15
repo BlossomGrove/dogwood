@@ -67,6 +67,5 @@ do_dogwood(Method,Path,Data,ConfigDb,
 					 content_length=length(RespBody)},
 	    {proceed,[{response,{200,RespHeaders,RespBody}}|Data]};
 	{RespHeaders,RespBody} ->
-	    io:format("JB-3 RespHeaders=~p~n RespBody=~p ~n",[RespHeaders,RespBody]),
 	    {proceed,[{response,{200,RespHeaders,RespBody}}|Data]}
     end.

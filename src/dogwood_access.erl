@@ -195,9 +195,8 @@ handle_cast({incoming,UnitId,Provider,Data},
 	    io:format("~p NO ACTION~n",[?MODULE]);
 	#sensor_cmd{id=SensorId,
 		    actions=Actions} ->
-    io:format("~p SensorId= ~p~n",[?MODULE,SensorId]),
 	    StoreData=rewrite_sensordata(circdb,Provider,Data),
-    io:format("~p StoreData= ~p~n",[?MODULE,StoreData]),
+    io:format("~p SensorId= ~p ==> ~p~n",[?MODULE,SensorId,StoreData]),
 	    dc_manager:update(SensorId,StoreData),
 %	    circdb_manager:update(SensorId,Data),
 	    do_actions(Actions,Provider,Data)
@@ -241,12 +240,17 @@ rewrite_sensordata(emqttc_manager,2,{H,Data}) ->
     Hum=proplists:get_value(humid,Data),
     Light=proplists:get_value(light,Data),
     MC=proplists:get_value(motion,Data),
+    Motion=if
+	       MC==0 -> false;
+	       true -> true
+	   end,
     CO2=proplists:get_value(co2,Data),
     Batt=proplists:get_value(batt,Data),
     PayLoad=[{temperature,Temp},
 	     {humidity,Hum},
 	     {light,Light},
 	     {motionCounter,MC},
+	     {motion,Motion},
 	     {co2,CO2},
 	     {battery,Batt}
 	    ],
@@ -254,7 +258,7 @@ rewrite_sensordata(emqttc_manager,2,{H,Data}) ->
 	  {'AccountId',AccountId},
 	  {'Payload',PayLoad}
 	 ],
-    io:format("Preparing to publish: JSON=~p~n",[JSON]),
+%    io:format("Preparing to publish: JSON=~p~n",[JSON]),
     list_to_binary(emd_json:encode(JSON));
 %% Body=[{header,
 %%            [{endpointKeyHash,[{string,<<"0B3BPu42uYFe9lo9H7ijjD+i7X4=">>}]},

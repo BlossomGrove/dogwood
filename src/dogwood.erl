@@ -9,7 +9,7 @@
 -module(dogwood).
 
 %% API
--export([start/0,stop/0,
+-export([start/0,stop/0,restart/0,
 	 map_record/2]).
 
 -include("dogwood_internal.hrl").
@@ -19,7 +19,8 @@
 %%% API
 %%%===================================================================
 %% erl -setcookie "secret" -name pilot@10.10.69.115 -pa meadow/ebin dogwood/ebin -run dogwood start
-%%  ssh -R 10000:localhost:9999 dektech@kaa.testbed.se
+%% ps ao comm,args | grep ssh
+%% ssh -R 10000:localhost:9999 dektech@kaa.testbed.se
 start() ->
     dogwood_lib:read_cfg(),
     application:start(?MODULE),
@@ -29,6 +30,11 @@ start() ->
 stop() ->
     emd_lib:stop_app().
 
+
+%% Ugly way to reread configuration
+restart() ->
+    application:stop(?MODULE),
+    application:start(?MODULE).
 
 %% --- Specific configuration records for dogwood
 map_record(RecordType,Fields) ->

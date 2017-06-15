@@ -14,11 +14,10 @@
 
 %% A sensor that is able to (somehow) deliver sensor data to us.
 -record(sensor,{
-	  id,
-	  unit,
-	  desc,
-	  provider,
-	  ts
+	  id::integer(),    % Internal sensor id 
+	  unit::term(),     % External sensor id
+	  desc::string(),   % Text description of sensor
+	  provider::integer() % Data source 
 	 }).
 
 -record(msg,{
