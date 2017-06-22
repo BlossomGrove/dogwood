@@ -139,6 +139,8 @@ process_args([],_UnitId,Args) ->
 process_args([Str|Rest],UnitId,Args) when is_list(Str) ->
     NewArg=process_args_str(Str,UnitId,[]),
     process_args(Rest,UnitId,[NewArg|Args]);
+process_args([H|Rest],UnitId,Args) when is_atom(H) ->
+    process_args(Rest,UnitId,[H|Args]);
 process_args([H|Rest],UnitId,Args) ->
     process_args(Rest,UnitId,[H|Args]).
 
@@ -195,11 +197,11 @@ handle_cast({incoming,UnitId,Provider,Data},
 	    io:format("~p NO ACTION~n",[?MODULE]);
 	#sensor_cmd{id=SensorId,
 		    actions=Actions} ->
-	    StoreData=rewrite_sensordata(circdb,Provider,Data),
+	    StoreData=rewrite_sensordata(circdb,Provider,SensorId,Data),
     io:format("~p SensorId= ~p ==> ~p~n",[?MODULE,SensorId,StoreData]),
 	    dc_manager:update(SensorId,StoreData),
 %	    circdb_manager:update(SensorId,Data),
-	    do_actions(Actions,Provider,Data)
+	    do_actions(Actions,Provider,SensorId,Data)
     end,
     {noreply, State}.
 
@@ -210,14 +212,15 @@ handle_cast({incoming,UnitId,Provider,Data},
 %% Note:
 %% - Now we handle this in a very hackish way by:
 %%   + hard coding a few known possible providers
-%%   + looking at some tag (eg procol module) to decide the consumer
-do_actions([],_Provider,_Data) ->
+%%   + looking at some tag (eg protocol module) to decide the consumer
+do_actions([],_Provider,_SensorId,_Data) ->
     ok;
-do_actions([#sensor_action{mfa={M,F,A}}|Rest],Provider,Data0) ->
-    Data=rewrite_sensordata(M,Provider,Data0),
-    R=(catch apply(M,F,A++[Data])),
-    io:format("~p:~p(~p) ==> ~p~n",[M,F,A,R]),
-    do_actions(Rest,Provider,Data0).
+do_actions([#sensor_action{mfa={M,F,A}}|Rest],Provider,SensorId,Data0) ->
+    Args=rewrite_sensordata(M,Provider,SensorId,Data0),
+    R=(catch apply(M,F,A++[Args])),
+    io:format("~p:~p(~p) ==> ~p~n",[M,F,A++[Args],R]),
+%    io:format("~p:~p(~p) ==> ~p~n",[M,F,A++[[SensorId,Data]],R]),
+    do_actions(Rest,Provider,SensorId,Data0).
 
 
 %% Each action requires Data formated in some way, thus we need to both input
@@ -232,7 +235,7 @@ do_actions([#sensor_action{mfa={M,F,A}}|Rest],Provider,Data0) ->
 %% 	      {motion,false},
 %% 	      {co2,438},
 %% 	      {battery,3662}]}]
-rewrite_sensordata(emqttc_manager,2,{H,Data}) ->
+rewrite_sensordata(emqttc_manager,2,_SensorId,{H,Data}) ->
     [{long,LongMsgId}]=proplists:get_value(timestamp,H),
     MsgId=list_to_binary(integer_to_list(LongMsgId)),
     AccountId= <<"debug">>,
@@ -282,9 +285,9 @@ rewrite_sensordata(emqttc_manager,2,{H,Data}) ->
 %%                  {analog1,0},
 %%                  {gpsStr,<<"0:.0">>},
 %%                  {timedatestr,<<"2017-05-11T11:27:59.143023">>}]}]}]
-rewrite_sensordata(rpc,2,{H,Data}) ->
-    [H++Data];
-rewrite_sensordata(circdb,2,{_H,Data}) ->
+rewrite_sensordata(rpc,2,SensorId,{H,Data}) ->
+    [SensorId,[H++Data]];
+rewrite_sensordata(circdb,2,_SensorId,{_H,Data}) ->
     %% Only store co2 values for now...
     proplists:get_value(co2,Data).
     
